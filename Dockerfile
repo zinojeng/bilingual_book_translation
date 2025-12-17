@@ -1,5 +1,8 @@
 FROM python:3.10-slim
 
+# Suppress pip root user warning
+ENV PIP_ROOT_USER_ACTION=ignore
+
 RUN apt-get update && apt-get install -y git build-essential
 
 WORKDIR /app
