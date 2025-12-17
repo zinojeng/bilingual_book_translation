@@ -3,10 +3,19 @@ import os
 import sys
 import tempfile
 import argparse
+import shutil
+import datetime
+import smtplib
 from pathlib import Path
 
 # Add current directory to path so we can import book_maker modules
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+from email_sender import send_email
+
+# Persistence Configuration
+OUTPUT_DIR = os.getenv("OUTPUT_DIR", "translations")
+if not os.path.exists(OUTPUT_DIR):
+    os.makedirs(OUTPUT_DIR)
 
 from book_maker.loader import BOOK_LOADER_DICT
 from book_maker.translator import MODEL_DICT
@@ -122,11 +131,26 @@ def main():
             
         base_url = st.text_input("API Base URL (Optional)", help="Override default API endpoint")
 
+        st.markdown("---")
+        st.header("📧 Delivery Options")
+        
+        enable_email = st.checkbox("Enable Email Notification")
+        receiver_email = st.text_input("Receiver Email")
+        
+        with st.expander("SMTP Configuration", expanded=False):
+            smtp_server = st.text_input("SMTP Server", value=os.getenv("SMTP_SERVER", "smtp.gmail.com"))
+            smtp_port = st.text_input("SMTP Port", value=os.getenv("SMTP_PORT", "587"))
+            sender_email_addr = st.text_input("Sender Email", value=os.getenv("SMTP_EMAIL", ""))
+            sender_password = st.text_input("Sender App Password", type="password", value=os.getenv("SMTP_PASSWORD", ""))
+
     # Main Content
-    col1, col2 = st.columns(2)
+    tab1, tab2 = st.tabs(["🚀 Translate", "📜 History"])
     
-    with col1:
-        st.subheader("1. 📂 File Selection")
+    with tab1:
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.subheader("1. 📂 File Selection")
         uploaded_file = st.file_uploader("Upload your file", type=["epub", "txt", "srt", "html"])
         
     with col2:
@@ -205,30 +229,53 @@ def main():
                     resume
                 )
                 if result_path and os.path.exists(result_path):
-                     st.session_state.translation_result = result_path
+                     # Persistence Logic
+                     try:
+                         file_name = os.path.basename(result_path)
+                         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+                         # Keep original name part but prefix/suffix to avoid collision if needed, 
+                         # or just timestamp it. Let's append timestamp.
+                         name, ext = os.path.splitext(file_name)
+                         saved_filename = f"{name}_{timestamp}{ext}"
+                         saved_path = os.path.join(OUTPUT_DIR, saved_filename)
+                         
+                         shutil.copy(result_path, saved_path)
+                         st.session_state.translation_result = saved_path
+                         st.success(f"Translation saved to History as {saved_filename}")
+                         
+                         # Email Logic
+                         if enable_email and receiver_email and sender_email_addr and sender_password:
+                             with st.spinner("Sending email..."):
+                                 success, msg = send_email(
+                                     smtp_server, 
+                                     smtp_port, 
+                                     sender_email_addr, 
+                                     sender_password, 
+                                     receiver_email, 
+                                     f"Translation Complete: {file_name}",
+                                     "Your translated book is attached.",
+                                     saved_path
+                                 )
+                                 if success:
+                                     st.toast("Email sent successfully!", icon="📧")
+                                 else:
+                                     st.error(msg)
+                             
+                     except Exception as e:
+                         st.error(f"Post-processing failed: {e}")
+
                      st.success("Translation Complete! 🎉")
             except Exception as e:
                 st.error(f"Translation failed: {str(e)}")
             finally:
                 st.session_state.translating = False
-                # Do NOT rerun here immediately if we want to show success in this frame?
-                # Actually, if we don't rerun, the "translating" state remains True in the UI until next interaction?
-                # No, we set it to False.
-                # If we don't rerun, the button stays 'disabled' visually? 
-                # Streamlit button `disabled` state updates on rerun.
-                # If we don't rerun, the button might look stuck.
-                # BUT if we rerun, `st.button` becomes False.
-                # We saved result to `st.session_state.translation_result`.
-                # So even if we rerun, we can render the download button from session state!
                 st.rerun()
 
-        # Persistent Display of Download Button
+        # Persistent Display of Download Button (from Session State)
         if "translation_result" in st.session_state and os.path.exists(st.session_state.translation_result):
             st.success("Translation Ready!")
             result_path = st.session_state.translation_result
-            file_name = f"translated_{Path(result_path).name}"
-             # Determine original name logic if needed, but simple is fine
-             
+            
             with open(result_path, "rb") as file:
                 st.download_button(
                     label="Download Translated Book",
@@ -236,6 +283,32 @@ def main():
                     file_name=os.path.basename(result_path),
                     mime="application/octet-stream"
                 )
+
+    with tab2:
+        st.header("📜 Translation History")
+        st.caption(f"Storage Path: {os.path.abspath(OUTPUT_DIR)}")
+        
+        # List files
+        if os.path.exists(OUTPUT_DIR):
+            files = sorted(Path(OUTPUT_DIR).iterdir(), key=os.path.getmtime, reverse=True)
+            if not files:
+                 st.info("No translations found.")
+            else:
+                 for f in files:
+                     if f.is_file():
+                         col_h1, col_h2 = st.columns([3, 1])
+                         with col_h1:
+                             st.write(f"📄 **{f.name}**")
+                             st.caption(f"Modified: {datetime.datetime.fromtimestamp(f.stat().st_mtime).strftime('%Y-%m-%d %H:%M:%S')}")
+                         with col_h2:
+                             with open(f, "rb") as f_data:
+                                 st.download_button(
+                                     label="Download",
+                                     data=f_data,
+                                     file_name=f.name,
+                                     mime="application/octet-stream",
+                                     key=f.name
+                                 )
 
 # ... (Rest of TqdmPatcher and imports ...)
 
