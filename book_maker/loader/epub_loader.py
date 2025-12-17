@@ -3,6 +3,7 @@ import pickle
 import string
 import sys
 import time
+import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from copy import copy
 from pathlib import Path
@@ -181,6 +182,20 @@ class EPUBBookLoader(BaseBookLoader):
 
         new_book.spine = book.spine
         new_book.toc = book.toc
+
+        # Fix for #173: Ensure all TOC items have a UID to prevent TypeError during write
+        def sanitize_toc(items):
+            for item in items:
+                if isinstance(item, (list, tuple)):
+                    # Section with children: (SectionObject, [children])
+                    if hasattr(item[0], "uid") and item[0].uid is None:
+                        item[0].uid = f"toc-{uuid.uuid4().hex}"
+                    sanitize_toc(item[1])
+                elif hasattr(item, "uid") and item.uid is None:
+                    # Link Object
+                    item.uid = f"toc-{uuid.uuid4().hex}"
+
+        sanitize_toc(new_book.toc)
         return new_book
 
     def _extract_paragraph(self, p):

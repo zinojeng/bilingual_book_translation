@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 
 class Base(ABC):
     def __init__(self, key, language) -> None:
-        self.keys = itertools.cycle(key.split(","))
+        self.keys = itertools.cycle([k.strip() for k in key.split(",") if k.strip()])
         self.language = language
 
     @abstractmethod

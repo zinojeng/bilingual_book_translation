@@ -32,19 +32,13 @@ PROMPT_ENV_MAP = {
 }
 
 GEMINIPRO_MODEL_LIST = [
-    "gemini-1.5-pro",
-    "gemini-1.5-pro-latest",
-    "gemini-1.5-pro-001",
-    "gemini-1.5-pro-002",
+    "gemini-3-pro-preview",
+    "gemini-2.5-pro",
 ]
 
 GEMINIFLASH_MODEL_LIST = [
-    "gemini-1.5-flash",
-    "gemini-1.5-flash-latest",
-    "gemini-1.5-flash-001",
-    "gemini-1.5-flash-002",
-    "gemini-2.0-flash-exp",
-    "gemini-2.5-flash-preview-04-17",
+    "gemini-2.5-flash",
+    "gemini-2.5-flash-lite",
 ]
 
 
@@ -80,6 +74,9 @@ class Gemini(Base):
         self.interval = 3
         genai.configure(api_key=next(self.keys))
         generation_config["temperature"] = temperature
+        self.model_list = cycle(GEMINIPRO_MODEL_LIST + GEMINIFLASH_MODEL_LIST)
+        self.model = next(self.model_list)
+        self.create_convo()
 
     def create_convo(self):
         model = genai.GenerativeModel(
@@ -121,6 +118,11 @@ class Gemini(Base):
                     self.prompt.format(text=text, language=self.language)
                 )
                 t_text = self.convo.last.text.strip()
+                
+                # Print token usage
+                if self.convo.last.usage_metadata:
+                    print(f"Token usage: Input {self.convo.last.usage_metadata.prompt_token_count}, Output {self.convo.last.usage_metadata.candidates_token_count}")
+                
                 # 检查是否包含特定标签,如果有则只返回标签内的内容
                 tag_pattern = (
                     r"<step3_refined_translation>(.*?)</step3_refined_translation>"
@@ -185,13 +187,8 @@ class Gemini(Base):
         self.set_models(GEMINIFLASH_MODEL_LIST)
 
     def set_models(self, allowed_models):
-        available_models = [
-            re.sub(r"^models/", "", i.name) for i in genai.list_models()
-        ]
-        model_list = sorted(
-            list(set(available_models) & set(allowed_models)),
-            key=allowed_models.index,
-        )
+        # Force use user specified models
+        model_list = allowed_models
         print(f"Using model list {model_list}")
         self.model_list = cycle(model_list)
         self.rotate_model()

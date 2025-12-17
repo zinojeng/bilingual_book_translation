@@ -145,3 +145,6 @@ log/
 books/
 prompts/
 .pdm-python
+
+# macOS AppleDouble files
+._*
