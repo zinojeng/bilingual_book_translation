@@ -37,6 +37,7 @@ GEMINIPRO_MODEL_LIST = [
 ]
 
 GEMINIFLASH_MODEL_LIST = [
+    "gemini-3-flash-preview",
     "gemini-2.5-flash",
     "gemini-2.5-flash-lite",
 ]
