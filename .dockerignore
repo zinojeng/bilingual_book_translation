@@ -7,3 +7,8 @@ test_books
 .github
 .gitignore
 .vscode
+venv
+.venv
+__pycache__
+*.pyc
+.env

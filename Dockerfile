@@ -4,6 +4,7 @@ FROM python:3.10
 
 # Suppress pip root user warning
 ENV PIP_ROOT_USER_ACTION=ignore
+ENV PYTHONUNBUFFERED=1
 
 WORKDIR /app
 
