@@ -1,9 +1,9 @@
-FROM python:3.10-slim
+# Use full Python image which includes build tools (gcc, etc.)
+# This avoids the need for apt-get update/install which was failing
+FROM python:3.10
 
 # Suppress pip root user warning
 ENV PIP_ROOT_USER_ACTION=ignore
-
-RUN apt-get update && apt-get install -y git build-essential
 
 WORKDIR /app
 
